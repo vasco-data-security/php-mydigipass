@@ -12,6 +12,9 @@ First off you need to clone this project in some folder where your webbrowser wi
 
 In ubuntu this normally is located in the folder `/var/www`.
 
+You also need to make sure that `curl` is installed on your system, and your php is configured to use 
+it (uncomment the line in your `php.ini`).
+
 Then take the following steps:
 
 * go to the [developer](https://developer.mydigipass.com) site
