@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Copyright (c) 2010 VZnet Netzwerke Ltd.
  *
@@ -24,13 +25,10 @@
  * @copyright 2010 VZnet Netzwerke Ltd.
  * @license   http://www.opensource.org/licenses/mit-license.html  MIT License
  */
+class OAuth2_Service_Configuration {
 
-
-class OAuth2_Service_Configuration
-{
     const AUTHORIZATION_METHOD_HEADER = 1;
     const AUTHORIZATION_METHOD_ALTERNATIVE = 2;
-
 
     /**
      * @var string
@@ -74,7 +72,7 @@ class OAuth2_Service_Configuration
      * @return string
      */
     public function setAuthorizationMethod($authorizationMethod) {
-         $this->_authorizationMethod = $authorizationMethod;
+        $this->_authorizationMethod = $authorizationMethod;
     }
 
     /**
@@ -86,8 +84,8 @@ class OAuth2_Service_Configuration
 
 }
 
-class OAuth2_Service
-{
+class OAuth2_Service {
+
     /**
      * @var OAuth2_Client
      */
@@ -107,7 +105,8 @@ class OAuth2_Service
      * @var string
      */
     private $_scope;
-
+    private $_uuid;
+    private $_headers;
 
     /**
      * @param OAuth2_Client $client
@@ -115,32 +114,28 @@ class OAuth2_Service
      * @param OAuth2_DataStore_Interface $dataStore
      * @param string $scope optional
      */
-    public function  __construct(OAuth2_Client $client,
-            OAuth2_Service_Configuration $configuration,
-            OAuth2_DataStore_Interface $dataStore,
-            $scope = null) {
+    public function __construct(OAuth2_Client $client, OAuth2_Service_Configuration $configuration, OAuth2_DataStore_Interface $dataStore, $scope = null) {
         $this->_client = $client;
         $this->_configuration = $configuration;
         $this->_dataStore = $dataStore;
         $this->_scope = $scope;
     }
 
-
-    public function getUserData ($base_uri,$access_token = null) {
+    public function getUserData($base_uri, $access_token = null) {
 
         if (!isset($access_token)) {
-         $token = $this->_dataStore->retrieveAccessToken();
-	 $access_token = $token->getAccessToken();
-	}
- 	$headers = array('Authorization: Bearer '.$access_token);
-	$uri=$base_uri.'/oauth/user_data';
-        $http = new OAuth2_HttpClient($uri, 'GET', $parameters, $headers);
+            $token = $this->_dataStore->retrieveAccessToken();
+            $access_token = $token->getAccessToken();
+        }
+        $headers = array('Authorization: Bearer ' . $access_token);
+        $uri = $base_uri . '/oauth/user_data';
+        $http = new OAuth2_HttpClient($uri, 'GET', "", $headers);
         $http->setDebug(true);
         $http->execute();
         $headers = $http->getHeaders();
         $type = 'text';
 
-	if (isset($headers['Content-Type']) && strpos($headers['Content-Type'], 'application/json') !== false) {
+        if (isset($headers['Content-Type']) && strpos($headers['Content-Type'], 'application/json') !== false) {
             $type = 'json';
         }
 
@@ -153,19 +148,67 @@ class OAuth2_Service
             default:
                 $response = OAuth2_HttpClient::parseStringToArray($http->getResponse(), '&', '=');
                 break;
-	}
-
+        }
+        $this->uuid = $response['uuid'];
+        $_SESSION['uuid'] = $response['uuid'];
+        $_SESSION['user'] = $response;
         return $response;
     }
 
+    public function connectUser($url, $uuid = null) {
+        if (!isset($uuid)) {
+            $uuid = $_SESSION['uuid'];
+        }
+        if (!isset($uuid)) {
+            throw new Exception("Could not retrieve the UUID from teh calls");
+        }
 
+        $parameters = array(
+            'uuids' => $uuid,
+            'type' => 'web_server'
+        );
+
+        $url = $url . "/api/uuids/connected";
+
+        //Initialize the connection
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $parameters);
+        curl_setopt($ch, CURLOPT_HEADER, 1);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_USERPWD, $this->_client->getClientKey() . ":" . $this->_client->getClientSecret());
+
+        //IMPORTANT//
+        //Remove the lower line when going live or testing your certificates
+        //This line will make sure that the curl does not verify the SSL certificate
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+
+        $fullResponse = curl_exec($ch);
+        if (FALSE === $fullResponse) {
+            throw new Exception(curl_error($ch), curl_errno($ch));
+        }
+        $this->_info = curl_getinfo($ch);
+
+        $this->_response = substr($fullResponse, $this->_info['header_size'], strlen($fullResponse));
+        if ($this->_response === false) {
+            $this->_response = '';
+        }
+        $headers = rtrim(substr($fullResponse, 0, $this->_info['header_size']));
+
+        $this->_headers = OAuth2_HttpClient::parseStringToArray($headers, PHP_EOL, ':');
+        if (isset($this->_headers['Status']) && strpos($this->_headers['Status'], '201') !== false) {
+            return "Successful connected!";
+        }
+
+        return $fullResponse;
+    }
 
     /**
      * redirect to authorize endpoint of service
      */
     public function authorize() {
         $parameters = array(
-            //'type' => 'web_server',
+            'type' => 'web_server',
             'client_id' => $this->_client->getClientKey(),
             'redirect_uri' => $this->_client->getCallbackUrl(),
             'response_type' => 'code',
@@ -185,11 +228,11 @@ class OAuth2_Service
      * @param string $code optional, if no code given method tries to get it out of $_GET
      */
     public function getAccessToken($code = null) {
-        if (! isset($code)) {
-	    $code=$this->_dataStore->retrieveAuthToken();
-	}
-        if (! isset($code)) {
-	    throw new OAuth2_Exception('could not retrieve code out of callback request and no code given');
+        if (!isset($code)) {
+            $code = $this->_dataStore->retrieveAuthToken();
+        }
+        if (!isset($code)) {
+            throw new OAuth2_Exception('could not retrieve code out of callback request and no code given');
         }
 
         $parameters = array(
@@ -217,7 +260,7 @@ class OAuth2_Service
      * @return OAuth2_Token new token object
      */
     public function refreshAccessToken(OAuth2_Token $token) {
-        if (! $token->getRefreshToken()) {
+        if (!$token->getRefreshToken()) {
             throw new OAuth2_Exception('could not refresh access token, no refresh token available');
         }
 
@@ -263,15 +306,13 @@ class OAuth2_Service
         if (isset($response['error'])) {
             throw new OAuth2_Exception('got error while requesting access token: ' . $response['error']);
         }
-        if (! isset($response['access_token'])) {
-   	    return null;
-	    // commented out to allow negative case --> provide incorrect authorization token still returns result code 200 OK; probable defect see redmine #16786
+        if (!isset($response['access_token'])) {
+            return null;
+            // commented out to allow negative case --> provide incorrect authorization token still returns result code 200 OK; probable defect see redmine #16786
             //throw new OAuth2_Exception('no access_token found');
         }
 
-        $token = new OAuth2_Token($response['access_token'],
-                isset($response['refresh_token']) ? $response['refresh_token'] : $oldRefreshToken,
-                isset($response['expires_in']) ? $response['expires_in'] : null);
+        $token = new OAuth2_Token($response['access_token'], isset($response['refresh_token']) ? $response['refresh_token'] : $oldRefreshToken, isset($response['expires_in']) ? $response['expires_in'] : null);
 
         unset($response['access_token']);
         unset($response['refresh_token']);
@@ -296,7 +337,7 @@ class OAuth2_Service
      * @param mixed $postBody optional, can be string or array
      * @param array $additionalHeaders
      * @return string
-     */    public function callApiEndpoint($endpoint, $method = 'GET', array $uriParameters = array(), $postBody = null, array $additionalHeaders = array()) {
+     */ public function callApiEndpoint($endpoint, $method = 'GET', array $uriParameters = array(), $postBody = null, array $additionalHeaders = array()) {
         $token = $this->_dataStore->retrieveAccessToken();
 
         //check if token is invalid
@@ -336,7 +377,7 @@ class OAuth2_Service
             }
         }
 
-        if (! empty($uriParameters)) {
+        if (!empty($uriParameters)) {
             $endpoint .= (strpos($endpoint, '?') !== false ? '&' : '?') . http_build_query($uriParameters);
         }
 
@@ -346,10 +387,11 @@ class OAuth2_Service
 
         return $http->getResponse();
     }
+
 }
 
-class OAuth2_Token
-{
+class OAuth2_Token {
+
     /**
      * @var string
      */
@@ -369,6 +411,7 @@ class OAuth2_Token
      * @var array
      */
     private $_additionalParams = array();
+
     /**
      *
      * @param string $accessToken
@@ -379,7 +422,7 @@ class OAuth2_Token
         $this->_accessToken = $accessToken;
         $this->_refreshToken = $refreshToken;
         if ($lifeTime) {
-            $this->_lifeTime = ((int)$lifeTime) + time();
+            $this->_lifeTime = ((int) $lifeTime) + time();
         }
     }
 
@@ -398,15 +441,15 @@ class OAuth2_Token
             throw new OAuth2_Exception('undefined magic method called');
         }
         $method = substr($name, 0, 3);
-        $param  = substr($name, 3);
+        $param = substr($name, 3);
         switch ($method) {
             case 'get':
-                if (! isset($this->_additionalParams[$param])) {
+                if (!isset($this->_additionalParams[$param])) {
                     throw new OAuth2_Exception($param . ' was not returned by service');
                 }
                 return $this->_additionalParams[$param];
             case 'set':
-                if (! array_key_exists(0, $arguments)) {
+                if (!array_key_exists(0, $arguments)) {
                     throw new OAuth2_Exception('magic setter has no argument');
                 }
                 $this->_additionalParams[$param] = $arguments[0];
@@ -436,39 +479,38 @@ class OAuth2_Token
     public function getLifeTime() {
         return $this->_lifeTime;
     }
+
 }
 
-class OAuth2_DataStore_Session implements OAuth2_DataStore_Interface
-{
+class OAuth2_DataStore_Session implements OAuth2_DataStore_Interface {
+
     public function __construct() {
         session_start();
     }
-   public function storeClientSecret($secret) {
-	 $_SESSION['client_secret'] =  $secret;
-	}
 
- public function retrieveClientSecret() {
-	 return isset($_SESSION['client_secret']) ? $_SESSION['client_secret'] : new OAuth2_Token();
-}
+    public function storeClientSecret($secret) {
+        $_SESSION['client_secret'] = $secret;
+    }
 
-   public function storeClientId($client_id) {
-         $_SESSION['client_id'] =  $client_id;
-        }
+    public function retrieveClientSecret() {
+        return isset($_SESSION['client_secret']) ? $_SESSION['client_secret'] : new OAuth2_Token();
+    }
 
- public function retrieveClientId() {     
-         return isset($_SESSION['client_id']) ? $_SESSION['client_id'] : new OAuth2_Token();
-}
-   public function storeBaseUri($base_uri) {
-         $_SESSION['base_uri'] =  $base_uri;
-        }
+    public function storeClientId($client_id) {
+        $_SESSION['client_id'] = $client_id;
+    }
 
- public function retrieveBaseUri() {     
-         return isset($_SESSION['base_uri']) ? $_SESSION['base_uri'] : '';
-}
+    public function retrieveClientId() {
+        return isset($_SESSION['client_id']) ? $_SESSION['client_id'] : new OAuth2_Token();
+    }
 
+    public function storeBaseUri($base_uri) {
+        $_SESSION['base_uri'] = $base_uri;
+    }
 
-
-
+    public function retrieveBaseUri() {
+        return isset($_SESSION['base_uri']) ? $_SESSION['base_uri'] : '';
+    }
 
     /**
      *
@@ -481,21 +523,23 @@ class OAuth2_DataStore_Session implements OAuth2_DataStore_Interface
     public function storeAccessToken(OAuth2_Token $token) {
         $_SESSION['oauth2_token'] = $token;
     }
+
     public function retrieveAuthToken() {
         return isset($_SESSION['auth_token']) ? $_SESSION['auth_token'] : null;
     }
 
-    public function storeAuthToken($code = null ) {
+    public function storeAuthToken($code = null) {
         $_SESSION['auth_token'] = $code;
     }
 
-    public function  __destruct() {
+    public function __destruct() {
         session_write_close();
     }
+
 }
 
-interface OAuth2_DataStore_Interface
-{
+interface OAuth2_DataStore_Interface {
+
     /**
      * @param OAuth2_Token $token
      */
@@ -507,8 +551,8 @@ interface OAuth2_DataStore_Interface
     function retrieveAccessToken();
 }
 
-class OAuth2_Client
-{
+class OAuth2_Client {
+
     /**
      * @var string
      */
@@ -547,8 +591,6 @@ class OAuth2_Client
         return $this->_clientKey = $newkey;
     }
 
-
-
     /**
      * @return string
      */
@@ -562,10 +604,11 @@ class OAuth2_Client
     public function getCallbackUrl() {
         return $this->_callbackUrl;
     }
+
 }
 
-class OAuth2_HttpClient
-{
+class OAuth2_HttpClient {
+
     /**
      * @var string
      */
@@ -618,19 +661,16 @@ class OAuth2_HttpClient
         $this->_parameters = $parameters;
         $this->_requestHeader = $header;
 
-	$output="<h2>HTTP Request</h2>\n<table>\n";
+        $output = "<h2>HTTP Request</h2>\n<table>\n";
         foreach (array('URL' => $url, 'Method' => $method) as $key => $value) {
             $output.="<tr><td>$key</td><td> $value</td>\n";
         }
-	$output.="</table>\n<pre>\n<h3>RequestHeader</h3>\n";
-        $output.=print_r($header,true);
+        $output.="</table>\n<pre>\n<h3>RequestHeader</h3>\n";
+        $output.=print_r($header, true);
         $output.="\n<h3>Parameters</h3>\n";
-        $output.=print_r($parameters,true);
-	$output.="\n</pre>";
-	$_SESSION['result'].=$output;
-
-
-
+        $output.=print_r($parameters, true);
+        $output.="\n</pre>";
+        $_SESSION['result'].=$output;
     }
 
     /**
@@ -666,45 +706,59 @@ class OAuth2_HttpClient
      * executes the curl request
      */
     public function execute() {
-        $ch = curl_init();
+        try {
+            $ch = curl_init();
+            if (FALSE === $ch)
+                throw new Exception("Failed to initialize");
 
-        if ($this->_method === 'POST') {
-            curl_setopt($ch, CURLOPT_URL, $this->_url);
-            curl_setopt($ch, CURLOPT_POST, 1);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $this->_parameters);
-        } else {
-            curl_setopt($ch, CURLOPT_URL, $this->_url . ($this->_parameters ? '?' . $this->_parameters : ''));
-        }
+            if ($this->_method === 'POST') {
+                curl_setopt($ch, CURLOPT_URL, $this->_url);
+                curl_setopt($ch, CURLOPT_POST, 1);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $this->_parameters);
+            } else {
+                curl_setopt($ch, CURLOPT_URL, $this->_url . ($this->_parameters ? '?' . $this->_parameters : ''));
+            }
 
-        curl_setopt($ch, CURLOPT_HEADER, 1);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+            curl_setopt($ch, CURLOPT_HEADER, 1);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 
-        if (! empty($this->_requestHeader)) {
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $this->_requestHeader);
-        }
+            if (!empty($this->_requestHeader)) {
+                curl_setopt($ch, CURLOPT_HTTPHEADER, $this->_requestHeader);
+            }
 
-        $fullResponse = curl_exec($ch);
-        $this->_info = curl_getinfo($ch);
+            //IMPORTANT//
+            //Remove the lower line when going live or testing your certificates
+            //This line will make sure that the curl does not verify the SSL certificate
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
 
-        $this->_response = substr($fullResponse, $this->_info['header_size'], strlen($fullResponse));
-        if ($this->_response === false) {
-            $this->_response = '';
-        }
-        $headers = rtrim(substr($fullResponse, 0, $this->_info['header_size']));
+            $fullResponse = curl_exec($ch);
+            if (FALSE === $fullResponse)
+                throw new Exception(curl_error($ch), curl_errno($ch));
+            $this->_info = curl_getinfo($ch);
 
-        $this->_headers = OAuth2_HttpClient::parseStringToArray($headers, PHP_EOL, ':');
-        if ($this->_debug) {
+            $this->_response = substr($fullResponse, $this->_info['header_size'], strlen($fullResponse));
+            if ($this->_response === false) {
+                $this->_response = '';
+            }
+            $headers = rtrim(substr($fullResponse, 0, $this->_info['header_size']));
 
-	$output="<h2>HTTP Result</h2>\n<pre>\n<h3>URL</h3>\n";
-	$output.=print_r($this->_url,true);
-	$output.="\n<h3>Headers</h3>\n<div id='http_response_headers'>\n";
-	$output.=print_r($this->_headers,true);
-	$output.="\n</div>\n<h3>Response</h3>\n<div id='http_response'>\n";
-	$output.=print_r($this->_response,true);
-	$output.="\n</div>\n </pre>\n";
+            $this->_headers = OAuth2_HttpClient::parseStringToArray($headers, PHP_EOL, ':');
+            if ($this->_debug) {
 
-	$_SESSION['result'].=$output;
+                $output = "<h2>HTTP Result</h2>\n<pre>\n<h3>URL</h3>\n";
+                $output.=print_r($this->_url, true);
+                $output.="\n<h3>Headers</h3>\n<div id='http_response_headers'>\n";
+                $output.=print_r($this->_headers, true);
+                $output.="\n</div>\n<h3>Response</h3>\n<div id='http_response'>\n";
+                $output.=print_r($this->_response, true);
+                $output.="\n</div>\n </pre>\n";
 
+                $_SESSION['result'].=$output;
+            }
+        } catch (Exception $exc) {
+            echo $exc->getTraceAsString();
+            echo $exc->getMessage();
+            echo $exc->getCode();
         }
         curl_close($ch);
     }
@@ -730,7 +784,8 @@ class OAuth2_HttpClient
         $this->_debug = $debug;
     }
 
+}
 
-    }
-
-class OAuth2_Exception extends Exception {}
+class OAuth2_Exception extends Exception {
+    
+}
