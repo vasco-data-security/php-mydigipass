@@ -29,7 +29,7 @@ if (isset($_GET['code'])) {
       $user = $service->getUserData($dataStore->retrieveBaseUri());
     }
     catch(Exception $e) {
-      echo 'Exception caught: ' . e.getMessage();
+      echo 'Exception caught: ' . $e->getMessage();
     }
 }
 
