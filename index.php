@@ -24,13 +24,13 @@ $service = new OAuth2_Service($client, $configuration, $dataStore, $scope);
 if ($_GET['code']) {
 
     try {
-      $dataStore->storeAuthToken($_GET['code']); 
+      $dataStore->storeAuthToken($_GET['code']);
       $service->getAccessToken($_GET['code']);
       $user = $service->getUserData($dataStore->retrieveBaseUri());
     }
     catch(Exception $e) {
       echo 'Exception caught: ' . e.getMessage();
-    } 
+    }
 }
 
 ?>
@@ -40,7 +40,7 @@ if ($_GET['code']) {
 
 <html>
   <head>
-      
+
   </head>
   <body id='home'>
     <h1>OAuth MyDigipass.com Test</h1>
@@ -55,18 +55,18 @@ if ($_GET['code']) {
       <h3>Succesfully signed in using MYDIGIPASS.COM!!</h3>
       <p>The following user signed in: </p>
       <p><?php print_r ($user); ?></p>
-      
-      <?php 
+
+      <?php
         // To see the entire OAuth conversation, uncomment the following line
-        //if (isset($_SESSION['result']))  {echo $_SESSION['result'];}; 
+        //if (isset($_SESSION['result']))  {echo $_SESSION['result'];};
       ?>
-      
+
     <?php } else { ?>
       <h3> Test DP+ Button</h3>
 
       <a class="dpplus-connect" data-client-id="<?php echo CLIENT_ID ?>" data-redirect-uri="<?php echo REDIRECT_URI ?>" href="#">Mydigipass.com Secure Login</a>
 
-      <script type="text/javascript" src="https://sandbox.mydigipass.com/dp_connect.js"></script>
+      <script type="text/javascript" src="https://static.mydigipass.com/dp_connect.js"></script>
 
     <?php } ?>
 
