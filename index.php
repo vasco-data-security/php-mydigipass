@@ -6,7 +6,7 @@ require_once 'oauth2.php';
 $dataStore = new OAuth2_DataStore_Session();
 
 // configuration of service
-$dataStore->storeBaseUri("https://sandbox.mydigipass.com");
+$dataStore->storeBaseUri(MDP_BASE_URI);
 
 $configuration = new OAuth2_Service_Configuration(
         $dataStore->retrieveBaseUri().'/oauth/authenticate',
@@ -64,7 +64,7 @@ if ($_GET['code']) {
     <?php } else { ?>
       <h3> Test DP+ Button</h3>
 
-      <a class="dpplus-connect" data-client-id="<?php echo CLIENT_ID ?>" data-redirect-uri="<?php echo REDIRECT_URI ?>" href="#">Mydigipass.com Secure Login</a>
+      <a class="dpplus-connect" data-origin="<?php echo MDP_BASE_URI ?>"  data-client-id="<?php echo CLIENT_ID ?>" data-redirect-uri="<?php echo REDIRECT_URI ?>" href="#">Mydigipass.com Secure Login</a>
 
       <script type="text/javascript" src="https://static.mydigipass.com/dp_connect.js"></script>
 
