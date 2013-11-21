@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Copyright (c) 2010 VZnet Netzwerke Ltd.
  *
@@ -787,5 +786,5 @@ class OAuth2_HttpClient {
 }
 
 class OAuth2_Exception extends Exception {
-    
+
 }
