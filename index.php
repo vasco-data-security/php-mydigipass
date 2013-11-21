@@ -21,7 +21,7 @@ $scope = null;
 
 $service = new OAuth2_Service($client, $configuration, $dataStore, $scope);
 
-if ($_GET['code']) {
+if (isset($_GET['code'])) {
 
     try {
       $dataStore->storeAuthToken($_GET['code']);
