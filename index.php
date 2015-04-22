@@ -64,7 +64,7 @@ if (isset($_GET['code'])) {
     <?php } else { ?>
       <h3> Test DP+ Button</h3>
 
-      <a class="dpplus-connect" data-origin="<?php echo MDP_BASE_URI ?>"  data-client-id="<?php echo CLIENT_ID ?>" data-redirect-uri="<?php echo REDIRECT_URI ?>" href="#">Mydigipass.com Secure Login</a>
+      <a class="dpplus-connect" data-is-sandbox="<?php echo MDP_SANDBOX ?>" data-origin="<?php echo MDP_BASE_URI ?>"  data-client-id="<?php echo CLIENT_ID ?>" data-redirect-uri="<?php echo REDIRECT_URI ?>" href="#">Mydigipass.com Secure Login</a>
 
       <script type="text/javascript" src="https://static.mydigipass.com/dp_connect.js"></script>
 
