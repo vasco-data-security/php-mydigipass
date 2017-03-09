@@ -162,10 +162,9 @@ class OAuth2_Service {
             throw new Exception("Could not retrieve the UUID from teh calls");
         }
 
-        $parameters = array(
-            'uuids' => $uuid,
-            'type' => 'web_server'
-        );
+        $parameters = json_encode(array(
+            'uuids' => array($uuid),
+        ));
 
         $url = $url . "/api/uuids/connected";
 
@@ -173,7 +172,11 @@ class OAuth2_Service {
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $parameters);
-        curl_setopt($ch, CURLOPT_HEADER, 1);
+        curl_setopt($ch, CURLOPT_HEADER, 1);        
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Content-Type: application/json',
+            'Content-Length: ' . strlen($parameters)
+        ));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_USERPWD, $this->_client->getClientKey() . ":" . $this->_client->getClientSecret());
 
